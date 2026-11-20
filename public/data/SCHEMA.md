@@ -14,9 +14,22 @@ The dashboard reads static JSON files from `public/data/`. `manifest.json` is wr
 - forecast_holdout.json: {kind: "backtest", note: "Predictions for held-out months the model did not see; not a forecast of future months.", experimentId, predictionLength, metric: {name, value}, error: {mae, wape}, leaderboard: [{model, metric}], byPlantMonth: [{plantId, month, actual, predicted}], series: [{seriesId, materialId, plantId, materialGroup, materialType, month, actual, predicted, lower, upper}]}. lower/upper are null when the file has no intervals. If series would exceed 15 MB, keep the 2,000 series with the largest actual volume, state that in note, and keep byPlantMonth complete.
 - forecast.json: {available: boolean, reason: string or null, kind: "forecast", experimentId, assetId, predictionLength, forecastFrom: YYYY-MM, forecastTo: YYYY-MM, horizons: [3, 6, 12] (only those up to predictionLength), note: string, byPlantMonth: [{plantId, month, horizon, predicted}], rows: [{seriesId, materialId, plantId, materialGroup, materialType, month, horizon, predicted, lower, upper}]}. horizon is the month's step after the last history month (1 for the first forecast month, up to predictionLength); the dashboard's 3 / 6 / 12-month view shows rows with horizon up to 3, 6 or 12. predicted is the mean; lower and upper are the 0.1 and 0.9 quantiles. byPlantMonth sums predicted over every series of a plant and month; it has no interval, because quantiles cannot be summed. Values are not clipped: a negative value means more reversals than issues are expected. If rows would exceed 15 MB, keep the 2,000 series with the largest total predicted, state that in note, and keep byPlantMonth complete. With no forecast: {available: false, reason: "<why>", kind: "forecast", horizons: [3, 6, 12], byPlantMonth: [], rows: []}.
 
-## Files published by S-2 (HZL_DEMO_01 forecast training set)
+## Files in this refresh (dashboard data refresh, schemaVersion 3)
 
-S-2 publishes only `hzl01_net_consumption.json` and `manifest.json`. The other contract files (dims, kpis, inventory_summary, materials, reorder, plan_vs_actual) belong to a full dashboard data refresh and are not part of this change. `manifest.forecast` is `null` until the S-3 forecast runs.
+All files cover material types ZSPR and ZSPN and plants HZL_DEMO_01..06 (ALL_PLANTS only in `kpis.json`), and include the fabricated 2023 backcast year (`manifest.backcastIncluded = true`). `manifest.asOf` is 2025-12-31 (INVENTORY_CLASSIFICATION.AS_OF_DATE). Every figure is a simulated POC figure; show `manifest.disclaimer` with it.
+
+| file | grain | rows key |
+|---|---|---|
+| dims.json | plants, material groups, material types, criticality, movement classes, inventory statuses | n/a (dimension lists) |
+| kpis.json | month x plant (incl. ALL_PLANTS) x KPI code x scenario, plus a 25-entry catalog | rows |
+| inventory_summary.json | plant x material group x material type x criticality x movement class x inventory status x ABC class | rows |
+| materials.json | material x plant (storage locations summed) | rows |
+| reorder.json | one reorder recommendation | rows |
+| plan_vs_actual.json | month x plant x material group x material type x shutdownDriven | rows |
+| hzl01_net_consumption.json | HZL_DEMO_01 forecast training set, material x month (columnar, described below) | rows |
+| forecast_holdout.json, forecast.json | written by the forecast task; absent until it runs (`manifest.forecast` is `null`) | n/a |
+
+`manifest.files[].rows` is the length of the file's `rows` array (for `dims.json`, the number of plants). Each manifest entry carries the integrationId, syncId, assetId and exact SQL of the Context Flow sync it came from; the SQL is also in `scripts/sql/`. `scripts/build_dashboard_data.py` converts the synced CSVs to JSON and `scripts/validate_data.py` checks the contract.
 
 ### hzl01_net_consumption.json
 

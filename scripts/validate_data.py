@@ -40,6 +40,38 @@ for f in m.get("files", []):
         if max(c.values()) != 1: bad("duplicate series/month")
         if months[0] != "2023-01" or months[-1] != "2025-12" or len(months) != 36: bad("month range")
         print("ok", f["name"], len(rows), "rows", len(series), "series", months[0], months[-1])
+
+# ---- six dashboard files ----
+PL = {"HZL_DEMO_0%d" % i for i in range(1, 7)}
+TYPES = {"ZSPR", "ZSPN"}
+FIELDS = {
+ "inventory_summary": "plantId materialGroup materialType criticality movementClass inventoryStatus abcClass materials availableQty valueInr",
+ "materials": "materialId plantId description materialGroup materialType criticality abcClass xyzClass movementClass inventoryStatus availableQty valueInr daysOnHand daysSinceLastConsumption safetyStockQty reorderPointQty maxStockQty trailing12mDemandQty",
+ "reorder": "recommendationId materialId plantId materialGroup materialType criticality priority recommendedPrDate recommendedQty estimatedValueInr availableQty openPrQty openPoQty safetyStockQty reorderPointQty reason shutdownId",
+ "plan_vs_actual": "month plantId materialGroup materialType shutdownDriven planValueInr actualPoValueInr actualGrValueInr varianceInr variancePct",
+ "kpis": "month plantId kpiCode value scenario",
+}
+for n, fl in FIELDS.items():
+    p = os.path.join(D, n + ".json")
+    if not os.path.exists(p): bad("missing " + n + ".json"); continue
+    doc = json.load(open(p))
+    ent = [f for f in m["files"] if f["name"] == n + ".json"]
+    if not ent: bad(n + " not in manifest"); continue
+    if ent[0]["rows"] != len(doc["rows"]): bad(n + " row count differs from manifest")
+    for r in doc["rows"]:
+        if set(r) != set(fl.split()): bad(n + " row fields differ from contract"); break
+    if n != "kpis":
+        if {r["plantId"] for r in doc["rows"]} - PL: bad(n + " plantId outside HZL_DEMO_01..06")
+        if {r["materialType"] for r in doc["rows"]} - TYPES: bad(n + " material type outside ZSPR/ZSPN")
+    else:
+        if {r["plantId"] for r in doc["rows"]} - (PL | {"ALL_PLANTS"}): bad("kpis plantId unexpected")
+        if {f["code"] for f in doc["catalog"]} != {r["kpiCode"] for r in doc["rows"]}: bad("kpis catalog != codes")
+    if n in ("inventory_summary", "materials", "reorder") and doc.get("asOf") != m["asOf"]: bad(n + " asOf")
+    print("ok", n, len(doc["rows"]), "rows")
+dims = json.load(open(os.path.join(D, "dims.json")))
+if {p["plantId"] for p in dims["plants"]} != PL: bad("dims plants")
+if {t["code"] for t in dims["materialTypes"]} != TYPES: bad("dims materialTypes")
+if not m.get("backcastIncluded"): bad("backcast must be included")
 if m.get("forecast") is not None and not isinstance(m["forecast"], dict): bad("forecast must be null or object")
 
 if errs:
